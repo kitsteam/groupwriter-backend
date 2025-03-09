@@ -21,6 +21,11 @@ const server = Server.configure({
   extensions: [
     new Logger({
       onRequest: false,
+      onChange: false,
+      onConnect: false,
+      onDisconnect: false,
+      onUpgrade: false,
+      onLoadDocument: false,
     }),
     new Database({
       fetch: async ({ documentName }) => {

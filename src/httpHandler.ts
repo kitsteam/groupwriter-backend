@@ -73,9 +73,13 @@ export const handleUploadImageRequest = async (
       }
     }
   } catch (error) {
-    console.error(error);
-    response.writeHead(500);
-    response.end();
+    console.error("Error when uploading image ", documentId, error);
+    if (!response.headersSent) {
+      response.writeHead(500);
+      response.end();
+    } else {
+      response.destroy();
+    }
   }
 };
 
@@ -89,6 +93,7 @@ export const handleGetImageRequest = async (
     const downloadedImage = getImageResult
       ? await downloadEncryptedImage(imageId)
       : null;
+
     if (getImageResult && downloadedImage) {
       response.writeHead(200, {
         "Content-Type": getImageResult.mimetype,
@@ -97,13 +102,17 @@ export const handleGetImageRequest = async (
       await pipeline(Readable.from(downloadedImage), response);
     } else {
       response.writeHead(404);
+      response.end();
     }
-  } catch {
-    console.error("Error when retrieving image ", imageId);
-    response.writeHead(500);
+  } catch (error) {
+    console.error("Error when retrieving image", imageId, error);
+    if (!response.headersSent) {
+      response.writeHead(500);
+      response.end();
+    } else {
+      response.destroy();
+    }
   }
-
-  response.end();
 };
 
 export const handleDeleteImageRequest = async (
@@ -130,9 +139,14 @@ export const handleDeleteImageRequest = async (
     } else {
       response.writeHead(404);
     }
-  } catch {
-    console.error("Error when deleting image ", imageId);
-    response.writeHead(500);
+  } catch (error) {
+    console.error("Error when deleting image ", imageId, error);
+    if (!response.headersSent) {
+      response.writeHead(500);
+      response.end();
+    } else {
+      response.destroy();
+    }
   }
 
   response.end();

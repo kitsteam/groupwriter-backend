@@ -16,15 +16,15 @@ export const handleCreateDocumentRequest = async (
   response: ServerResponse<IncomingMessage>,
   prisma: PrismaClient,
 ): Promise<void> => {
-  console.debug(`Creating new document`);
-  // return a new document:
-  const document = await createDocument(prisma).catch((error: Error) => {
-    console.error(error);
-    throw error;
-  });
+  const document = await createDocument(prisma);
 
-  response.writeHead(200, { "Content-Type": "text/json" });
-  response.end(JSON.stringify(document));
+  if (document) {
+    response.writeHead(200, { "Content-Type": "text/json" });
+    response.end(JSON.stringify(document));
+  } else {
+    response.writeHead(500);
+    response.end();
+  }
 };
 
 export const handleDeleteDocumentRequest = async (
@@ -73,9 +73,13 @@ export const handleUploadImageRequest = async (
       }
     }
   } catch (error) {
-    console.error(error);
-    response.writeHead(500);
-    response.end();
+    console.error("Error when uploading image ", documentId, error);
+    if (!response.headersSent) {
+      response.writeHead(500);
+      response.end();
+    } else {
+      response.destroy();
+    }
   }
 };
 
@@ -84,20 +88,31 @@ export const handleGetImageRequest = async (
   response: ServerResponse<IncomingMessage>,
   prisma: PrismaClient,
 ): Promise<void> => {
-  const getImageResult = await getImage(prisma, imageId);
-  const downloadedImage = getImageResult
-    ? await downloadEncryptedImage(imageId)
-    : null;
-  if (getImageResult && downloadedImage) {
-    response.writeHead(200, {
-      "Content-Type": getImageResult.mimetype,
-      "Content-Disposition": "inline; filename=" + getImageResult.name,
-    });
-    await pipeline(Readable.from(downloadedImage), response);
-  } else {
-    response.writeHead(404);
+  try {
+    const getImageResult = await getImage(prisma, imageId);
+    const downloadedImage = getImageResult
+      ? await downloadEncryptedImage(imageId)
+      : null;
+
+    if (getImageResult && downloadedImage) {
+      response.writeHead(200, {
+        "Content-Type": getImageResult.mimetype,
+        "Content-Disposition": "inline; filename=" + getImageResult.name,
+      });
+      await pipeline(Readable.from(downloadedImage), response);
+    } else {
+      response.writeHead(404);
+      response.end();
+    }
+  } catch (error) {
+    console.error("Error when retrieving image", imageId, error);
+    if (!response.headersSent) {
+      response.writeHead(500);
+      response.end();
+    } else {
+      response.destroy();
+    }
   }
-  response.end();
 };
 
 export const handleDeleteImageRequest = async (
@@ -106,22 +121,33 @@ export const handleDeleteImageRequest = async (
   response: ServerResponse<IncomingMessage>,
   prisma: PrismaClient,
 ): Promise<void> => {
-  const image = await getImage(prisma, imageId);
+  try {
+    const image = await getImage(prisma, imageId);
 
-  await checkPermission(
-    prisma,
-    image?.documentId,
-    modificationSecret,
-    response,
-  );
-  const deletedImageResult = await deleteImage(prisma, imageId);
-  const result = deletedImageResult
-    ? await deleteImageFromBucket(imageId)
-    : null;
-  if (deletedImageResult && result) {
-    response.writeHead(204);
-  } else {
-    response.writeHead(404);
+    await checkPermission(
+      prisma,
+      image?.documentId,
+      modificationSecret,
+      response,
+    );
+    const deletedImageResult = await deleteImage(prisma, imageId);
+    const result = deletedImageResult
+      ? await deleteImageFromBucket(imageId)
+      : null;
+    if (deletedImageResult && result) {
+      response.writeHead(204);
+    } else {
+      response.writeHead(404);
+    }
+  } catch (error) {
+    console.error("Error when deleting image ", imageId, error);
+    if (!response.headersSent) {
+      response.writeHead(500);
+      response.end();
+    } else {
+      response.destroy();
+    }
   }
+
   response.end();
 };
